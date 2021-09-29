@@ -43,8 +43,29 @@ app.post('/books', async (request, response) => {
 });
 
 app.delete('/books/:id', async (request, response) => {
-  await Book.findByIdAndDelete(request.params.id);
-  response.send(204).send('success');
+
+  // if email sent on query then....
+  if (request.query.email) {
+    // get the book that matches id AND email
+    const foundBook = await Book.findOne({ _id: request.params.id, email: request.query.email });
+
+    // only delete if found
+
+    console.log({ foundBook });
+
+    // const deleteResult = await Book.findByIdAndDelete(request.params.id);
+
+    if (foundBook) {
+      const deleteResult = await Book.findByIdAndDelete(request.params.id);
+      console.log({ deleteResult });
+      response.status(204).send('success');
+    } else {
+      response.status(400).send('You cannot delete that book'); // correct status code???
+    }
+
+  } else {
+    response.status(403).send('You must be logged in');
+  }
 });
 
 
