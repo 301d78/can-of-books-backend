@@ -1,73 +1,106 @@
 'use strict';
 
-require('dotenv').config();
 const express = require('express');
+require('dotenv').config();
 const cors = require('cors');
+
+const PORT = process.env.PORT || 3001;
+const app = express();
+app.use(cors());
+app.use(express.json()); // needed for labs 12 and 13
+
+// Mongoose
 const mongoose = require('mongoose');
-
-// set up mongoose
 mongoose.connect(process.env.MONGODB_URI);
-mongoose.connection.on('error', (error) => console.error(error));
-mongoose.connection.once('open', () => console.log('connected'));
-
-const BookModel = require('./models/book.js');
+const db = mongoose.connection;
+db.on('error', console.error.bind(console, 'connection error:'));
+db.once('open', _ => {
+  console.log('We\'re connected!');
+});
 const Book = require('./models/book.js');
 
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+// routes
+app.get('/books', getBooks); // lab 11
+app.post('/books', createBook); // lab 12
+app.delete('/books/:id', deleteBook); // lab 12
+app.put('/books/:id', updateBook); // lab 13
 
-const PORT = process.env.PORT || 3001;
 
-app.get('/test', (request, response) => {
+// route handlers
 
-  response.send('test request received')
+// lab 11
+async function getBooks(request, response) {
 
-})
-
-app.get('/books', async (request, response) => {
-  const filterQuery = {};
-  if (request.query.email) {
-    filterQuery.email = request.query.email;
+  try {
+    const books = await Book.find({ email: request.query.email });
+    response.send(books);
+  } catch (error) {
+    console.error(error);
+    response.status(400).send('Could not find books');
   }
+}
 
-  const books = await Book.find(filterQuery);
+// lab 12
+async function createBook(request, response) {
+  try {
+    const book = await Book.create(request.body)
+    response.send(book);
+  } catch (error) {
+    console.error(error);
+    response.status(400).send('unable to create book');
+  }
+}
 
-  response.send(books);
-});
+// lab 12
+async function deleteBook(request, response) {
+  try {
+    const email = request.query.email;
+    const id = request.params.id;
 
-app.post('/books', async (request, response) => {
-  const newBook = await Book.create({ ...request.body, email: request.query.email });
-  response.send(newBook);
-});
+    const book = await Book.findOne({ _id: id, email });
 
-app.delete('/books/:id', async (request, response) => {
-
-  // if email sent on query then....
-  if (request.query.email) {
-    // get the book that matches id AND email
-    const foundBook = await Book.findOne({ _id: request.params.id, email: request.query.email });
-
-    // only delete if found
-
-    console.log({ foundBook });
-
-    // const deleteResult = await Book.findByIdAndDelete(request.params.id);
-
-    if (foundBook) {
-      const deleteResult = await Book.findByIdAndDelete(request.params.id);
-      console.log({ deleteResult });
-      response.status(204).send('success');
-    } else {
-      response.status(400).send('You cannot delete that book'); // correct status code???
+    if (!book) {
+      response.status(400).send('unable to delete book');
+      return;
     }
 
-  } else {
-    response.status(403).send('You must be logged in');
+    if (book.email !== email) {
+      response.status(400).send('unable to delete book');
+      return;
+    }
+
+    await Book.findByIdAndDelete(id);
+    response.send('success');
+
+  } catch (error) {
+    console.error(error);
+    response.status(400).send('unable to delete book');
   }
-});
+}
 
+// lab 13
+async function updateBook(request, response) {
 
+  const id = request.params.id;
+  const email = request.query.email;
+
+  try {
+    const bookToUpdate = await Book.findOne({ _id: id, email });
+
+    if (!bookToUpdate) {
+      response.status(400).send('unable to update book');
+      return;
+    }
+
+    const updatedBook = await Book.findByIdAndUpdate(id, request.body, { new: true });
+
+    response.send(updatedBook);
+
+  } catch (error) {
+    console.error(error);
+    response.status(400).send('unable to update book');
+  }
+}
 
 app.listen(PORT, () => console.log(`listening on ${PORT}`));
