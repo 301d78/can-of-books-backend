@@ -3,9 +3,11 @@
 const express = require('express');
 require('dotenv').config();
 const cors = require('cors');
-
+const verifyUser = require('./auth');
 const PORT = process.env.PORT || 3001;
 const app = express();
+
+
 app.use(cors());
 app.use(express.json()); // needed for labs 12 and 13
 
@@ -25,6 +27,7 @@ app.get('/books', getBooks); // lab 11
 app.post('/books', createBook); // lab 12
 app.delete('/books/:id', deleteBook); // lab 12
 app.put('/books/:id', updateBook); // lab 13
+app.get('/user', getUser);// lab 14
 
 
 // route handlers
@@ -32,13 +35,20 @@ app.put('/books/:id', updateBook); // lab 13
 // lab 11
 async function getBooks(request, response) {
 
-  try {
-    const books = await Book.find({ email: request.query.email });
-    response.send(books);
-  } catch (error) {
-    console.error(error);
-    response.status(400).send('Could not find books');
-  }
+  verifyUser(request, async (err, user) => {
+    if (err) {
+      response.send('invalid token');
+    } else {
+
+      try {
+        const books = await Book.find({ email: user.email });
+        response.send(books);
+      } catch (error) {
+        console.error(error);
+        response.status(400).send('Could not find books');
+      }
+    }
+  })
 }
 
 // lab 12
@@ -101,6 +111,18 @@ async function updateBook(request, response) {
     console.error(error);
     response.status(400).send('unable to update book');
   }
+}
+
+// lab 14 - Auth
+function getUser(request, response) {
+
+  verifyUser(request, (err, user) => {
+    if (err) {
+      response.send('invalid token');
+    } else {
+      response.send(user);
+    }
+  })
 }
 
 app.listen(PORT, () => console.log(`listening on ${PORT}`));
